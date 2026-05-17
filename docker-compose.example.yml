@@ -11,7 +11,7 @@
 
 services:
   backupy-agent:
-    image: ghcr.io/tronosfera/backupy-agent:v0.1.0
+    image: ghcr.io/tronosfera/backupy-agent:0.1.0
     container_name: backupy-agent
     restart: unless-stopped
     environment:

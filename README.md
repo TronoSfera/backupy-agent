@@ -17,7 +17,7 @@ Open-source backup agent for the [Backupy](https://backupy.tronosfera.ru) backup
 ```yaml
 services:
   backupy-agent:
-    image: ghcr.io/tronosfera/backupy-agent:v0.1.0
+    image: ghcr.io/tronosfera/backupy-agent:0.1.0
     restart: unless-stopped
     environment:
       BACKUPY_SERVER_URL: wss://backupy.tronosfera.ru/agents/connect
