@@ -1,0 +1,18 @@
+# Backupy protobuf codegen — see docs/07-api-contract.md
+#
+# Targets:
+#   - Go bindings for apps/agent and apps/server.
+#
+# Run via `make gen` from the repo root (which `cd`s into this directory and
+# invokes `buf generate`). Output is committed to gen/go/v1/.
+
+version: v2
+
+managed:
+  enabled: true
+
+plugins:
+  - remote: buf.build/protocolbuffers/go
+    out: gen/go
+    opt:
+      - paths=source_relative

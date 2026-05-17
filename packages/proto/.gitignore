@@ -1,0 +1,7 @@
+# Backupy protobuf module
+#
+# Generated Go code is committed (small Go project, easier debugging, no
+# need for a buf install in every consumer). Ignore only local buf caches
+# and tool downloads.
+
+.buf-cache/

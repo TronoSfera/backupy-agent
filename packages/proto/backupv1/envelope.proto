@@ -1,0 +1,49 @@
+// Backupy protobuf v1 — see docs/07-api-contract.md
+//
+// Envelope is the single top-level wrapper carried in every WSS binary frame
+// in either direction. The `payload` oneof selects which concrete message is
+// being transported; field numbers must remain stable forever.
+
+syntax = "proto3";
+
+package backup.v1;
+
+import "backupv1/agent_to_server.proto";
+import "backupv1/server_to_agent.proto";
+
+option go_package = "github.com/backupy/backupy/packages/proto/gen/go/backupv1;backupv1";
+
+// Envelope wraps every WSS message in both directions.
+// See docs/07-api-contract.md §3.
+message Envelope {
+  uint64 seq = 1;             // monotonic, per-direction
+  uint64 ts_ms = 2;           // unix milliseconds, set by sender
+  string correlation_id = 3;  // links request/response pairs (e.g. Ping/Ack)
+
+  oneof payload {
+    // ---------------- agent -> server ----------------
+    Register register = 10;
+    Heartbeat heartbeat = 11;
+    DiscoveryReport discovery = 12;
+    JobUpdate job_update = 13;
+    BackupCompleted backup_completed = 14;
+    HealthCheckResult health_result = 15;
+    LogEvent log = 16;
+    RestoreUpdate restore_update = 17;
+    Ack ack = 18;
+
+    // ---------------- server -> agent ----------------
+    RegisterAck register_ack = 50;
+    ConfigUpdate config_update = 51;
+    RunBackup run_backup = 52;
+    CancelJob cancel_job = 53;
+    RunHealthCheck run_health_check = 54;
+    // 55 reserved: previously RunRestore (removed in MVP, see docs/07 §5).
+    SelfUpdate self_update = 56;
+    Ping ping = 57;
+  }
+
+  // Reserve the tag previously occupied by RunRestore so the wire format
+  // remains compatible if a future v2 reintroduces it under a new message.
+  reserved 55;
+}

@@ -1,0 +1,30 @@
+# Go build artifacts
+*.test
+*.out
+/bin/
+/dist/
+/build/
+
+# IDE
+.idea/
+.vscode/
+.DS_Store
+*.swp
+
+# Local secrets / runtime
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+!*.pub.key
+secrets/
+
+# Logs
+*.log
+logs/
+
+# State (BoltDB queue / WAL)
+*.db
+*.bolt
+state/

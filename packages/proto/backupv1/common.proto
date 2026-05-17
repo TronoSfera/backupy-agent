@@ -1,0 +1,125 @@
+// Backupy protobuf v1 — see docs/07-api-contract.md
+//
+// Shared enums and messages used across agent_to_server and server_to_agent
+// payloads. Keep this file dependency-free — only primitives and other
+// definitions from this same file may appear here.
+
+syntax = "proto3";
+
+package backup.v1;
+
+option go_package = "github.com/backupy/backupy/packages/proto/gen/go/backupv1;backupv1";
+
+// -----------------------------------------------------------------------------
+// Enums
+// -----------------------------------------------------------------------------
+
+// JobStatus is the lifecycle state for a backup or restore job.
+// See docs/07-api-contract.md §4 (JobUpdate, RestoreUpdate).
+enum JobStatus {
+  JOB_STATUS_UNSPECIFIED = 0;
+  QUEUED = 1;
+  RUNNING = 2;
+  SUCCESS = 3;
+  FAILED = 4;
+  CANCELLED = 5;
+}
+
+// DbType enumerates supported database engines for targets.
+// See docs/07-api-contract.md §5 (Target).
+enum DbType {
+  DB_UNSPECIFIED = 0;
+  POSTGRESQL = 1;
+  MYSQL = 2;
+  MARIADB = 3;
+  MONGODB = 4;
+  REDIS = 5;
+  SQLITE = 6;
+}
+
+// ConnectionStrategy is how the agent reaches the database.
+// See docs/07-api-contract.md §5 (ConnectionConfig).
+enum ConnectionStrategy {
+  TCP = 0;
+  DOCKER_EXEC = 1;
+  UNIX_SOCKET = 2;
+}
+
+// CheckType enumerates supported health-check probe types.
+// See docs/07-api-contract.md §5 (HealthCheckSpec).
+enum CheckType {
+  HTTP = 0;
+  HTTPS = 1;
+  TCP_CHECK = 2;
+}
+
+// LogLevel is the severity for LogEvent records streamed by the agent.
+// See docs/07-api-contract.md §4 (LogEvent).
+enum LogLevel {
+  TRACE = 0;
+  DEBUG = 1;
+  INFO = 2;
+  WARN = 3;
+  ERROR = 4;
+}
+
+// -----------------------------------------------------------------------------
+// Shared messages
+// -----------------------------------------------------------------------------
+
+// AgentMetrics is the snapshot of host resource usage attached to Heartbeat.
+// See docs/07-api-contract.md §4 (Heartbeat).
+message AgentMetrics {
+  float cpu_percent = 1;
+  uint64 mem_used_bytes = 2;
+  uint64 mem_total_bytes = 3;
+  uint64 disk_used_bytes = 4;
+  uint64 disk_total_bytes = 5;
+  uint32 queue_depth = 6;
+}
+
+// PortBinding describes a single container port published on the host.
+// See docs/07-api-contract.md §4 (DiscoveryReport).
+message PortBinding {
+  uint32 container_port = 1;
+  uint32 host_port = 2;
+  string protocol = 3;
+}
+
+// S3UploadCreds is a presigned PUT URL the agent uses to upload the encrypted
+// backup blob. See docs/07-api-contract.md §5 (RunBackup).
+message S3UploadCreds {
+  string presigned_put_url = 1;
+  uint64 expires_at_ms = 2;
+  string final_s3_key = 3;
+}
+
+// S3DownloadCreds is a presigned GET URL for fetching a backup blob (reserved
+// for future restore-via-agent flows). Not used in MVP — Phase 3.
+message S3DownloadCreds {
+  string presigned_get_url = 1;
+  uint64 expires_at_ms = 2;
+  string s3_key = 3;
+}
+
+// RetryPolicy controls how the agent retries a failed backup job.
+// See docs/07-api-contract.md §5 (BackupJobSpec).
+message RetryPolicy {
+  uint32 max_attempts = 1;
+  repeated uint32 backoff_seconds = 2; // e.g. [60, 300, 1800]
+}
+
+// MaintenanceWindow defines a UTC time-of-day window where backups are paused.
+// See docs/07-api-contract.md §5 (AgentConfig).
+message MaintenanceWindow {
+  string start_utc = 1; // "02:00"
+  string end_utc = 2;   // "05:00"
+}
+
+// AdvancedSettings carries miscellaneous tunables pushed in AgentConfig.
+// See docs/07-api-contract.md §5 (AgentConfig).
+message AdvancedSettings {
+  uint32 max_parallel_jobs = 1;
+  string log_level = 2;
+  bool auto_update_enabled = 3;
+}

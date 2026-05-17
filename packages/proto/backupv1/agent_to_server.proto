@@ -1,0 +1,151 @@
+// Backupy protobuf v1 — see docs/07-api-contract.md
+//
+// Messages flowing from the agent to the server over the long-lived WSS
+// connection. Each is wrapped in an Envelope (see envelope.proto).
+
+syntax = "proto3";
+
+package backup.v1;
+
+import "backupv1/common.proto";
+
+option go_package = "github.com/backupy/backupy/packages/proto/gen/go/backupv1;backupv1";
+
+// -----------------------------------------------------------------------------
+// Register / Heartbeat
+// -----------------------------------------------------------------------------
+
+// Register is the first message the agent sends after authenticating the
+// WSS connection. The server replies with RegisterAck.
+// See docs/07-api-contract.md §4 (Register).
+message Register {
+  string agent_version = 1;
+  string hostname = 2;
+  string os = 3;                       // "linux"
+  string arch = 4;                     // "amd64"
+  string docker_version = 5;
+  repeated string capabilities = 6;    // ["pg_dump", "mysqldump", "docker_discovery"]
+  uint64 last_known_config_version = 7;
+}
+
+// Heartbeat is sent every heartbeat_interval_sec (default 30s).
+// See docs/07-api-contract.md §4 (Heartbeat).
+message Heartbeat {
+  uint64 config_version = 1;
+  AgentMetrics metrics = 2;
+  repeated string active_job_ids = 3;
+}
+
+// -----------------------------------------------------------------------------
+// Discovery
+// -----------------------------------------------------------------------------
+
+// DiscoveryReport is sent on startup and whenever docker events change the set
+// of running containers. See docs/07-api-contract.md §4 (DiscoveryReport).
+message DiscoveryReport {
+  repeated DiscoveredContainer containers = 1;
+}
+
+message DiscoveredContainer {
+  string container_id = 1;
+  string name = 2;
+  string image = 3;                    // "postgres:16"
+  string detected_db_type = 4;         // "postgresql"
+  repeated string networks = 5;
+  map<string, string> env_hints = 6;   // env vars filtered to remove secrets
+  repeated PortBinding ports = 7;
+}
+
+// -----------------------------------------------------------------------------
+// Job lifecycle
+// -----------------------------------------------------------------------------
+
+// JobUpdate is a progress tick for a running backup job.
+// See docs/07-api-contract.md §4 (JobUpdate).
+//
+// run_id was appended (field 6) after the initial Phase-1 wire so the
+// scheduler can correlate a tick to a specific BackupRun row. Older
+// agents that omit it are tolerated as "job-level" updates (no run row
+// transition).
+message JobUpdate {
+  string job_id = 1;
+  JobStatus status = 2;
+  uint32 progress_percent = 3;
+  string current_step = 4;             // "dumping", "compressing", "uploading"
+  string error_message = 5;            // populated when status == FAILED
+  string run_id = 6;                   // correlates to BackupRun.id; appended in v1.1
+}
+
+// BackupCompleted is sent once after a successful S3 upload, carrying the
+// metadata the server needs to persist a backup_runs row.
+// See docs/07-api-contract.md §4 (BackupCompleted).
+message BackupCompleted {
+  string job_id = 1;
+  string run_id = 2;
+  string s3_key = 3;
+  uint64 size_bytes = 4;
+  string sha256 = 5;
+  uint64 duration_ms = 6;
+  string dek_kms_id = 7;
+  bytes encrypted_dek = 8;
+  string compression = 9;              // "zstd"
+  string db_engine_version = 10;       // "PostgreSQL 16.2"
+}
+
+// -----------------------------------------------------------------------------
+// Health checks
+// -----------------------------------------------------------------------------
+
+// HealthCheckResult is the outcome of a single probe run.
+// See docs/07-api-contract.md §4 (HealthCheckResult).
+message HealthCheckResult {
+  string check_id = 1;
+  uint64 ts_ms = 2;
+  bool ok = 3;
+  uint32 latency_ms = 4;
+  string error = 5;
+  uint32 status_code = 6;              // populated for HTTP/HTTPS probes
+}
+
+// -----------------------------------------------------------------------------
+// Logs
+// -----------------------------------------------------------------------------
+
+// LogEvent is a structured log line streamed from the agent.
+// See docs/07-api-contract.md §4 (LogEvent).
+message LogEvent {
+  uint64 ts_ms = 1;
+  LogLevel level = 2;
+  string job_id = 3;                   // optional
+  string message = 4;
+  map<string, string> fields = 5;
+}
+
+// -----------------------------------------------------------------------------
+// Restore (download-only stub in MVP)
+// -----------------------------------------------------------------------------
+
+// RestoreUpdate is reserved for future agent-driven restore flows. In MVP the
+// agent never receives a RunRestore command — restore happens through the REST
+// download endpoint and the local backupy-decrypt CLI. Kept in the contract so
+// the field number is stable for Phase 3.
+// See docs/07-api-contract.md §4 (RestoreUpdate).
+message RestoreUpdate {
+  string restore_id = 1;
+  JobStatus status = 2;
+  uint32 progress_percent = 3;
+  string current_step = 4;
+  string error_message = 5;
+}
+
+// -----------------------------------------------------------------------------
+// Generic acknowledgement
+// -----------------------------------------------------------------------------
+
+// Ack responds to a server message identified by correlation_id.
+// See docs/07-api-contract.md §4 (Ack).
+message Ack {
+  string correlation_id = 1;
+  bool accepted = 2;
+  string reason = 3;                   // populated when accepted == false
+}

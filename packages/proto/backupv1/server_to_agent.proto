@@ -1,0 +1,147 @@
+// Backupy protobuf v1 — see docs/07-api-contract.md
+//
+// Messages flowing from the server to the agent over the long-lived WSS
+// connection. Each is wrapped in an Envelope (see envelope.proto).
+
+syntax = "proto3";
+
+package backup.v1;
+
+import "backupv1/common.proto";
+
+option go_package = "github.com/backupy/backupy/packages/proto/gen/go/backupv1;backupv1";
+
+// -----------------------------------------------------------------------------
+// Register handshake response
+// -----------------------------------------------------------------------------
+
+// RegisterAck is the reply to Register. Carries an AgentConfig snapshot so the
+// agent can begin work without an extra round-trip.
+// See docs/07-api-contract.md §5 (RegisterAck).
+message RegisterAck {
+  string session_id = 1;
+  AgentConfig config = 2;
+  uint32 heartbeat_interval_sec = 3;
+  string server_time_iso = 4;
+}
+
+// -----------------------------------------------------------------------------
+// AgentConfig and sub-messages (also reused inside ConfigUpdate)
+// -----------------------------------------------------------------------------
+
+// AgentConfig is the full configuration snapshot for an agent.
+// See docs/07-api-contract.md §5 (AgentConfig).
+message AgentConfig {
+  uint64 version = 1;
+  repeated Target targets = 2;
+  repeated BackupJobSpec jobs = 3;
+  repeated HealthCheckSpec health_checks = 4;
+  MaintenanceWindow maintenance = 5;
+  AdvancedSettings advanced = 6;
+}
+
+// Target is a single backup source (database) managed by this agent.
+// See docs/07-api-contract.md §5 (Target).
+message Target {
+  string id = 1;
+  DbType type = 2;
+  string display_name = 3;
+  ConnectionConfig connection = 4;
+}
+
+// ConnectionConfig describes how the agent connects to a Target's database.
+// See docs/07-api-contract.md §5 (ConnectionConfig).
+message ConnectionConfig {
+  string host = 1;
+  uint32 port = 2;
+  string database = 3;
+  string username = 4;
+  string password_secret_ref = 5;      // reference to encrypted secret in vault
+  string container_id = 6;             // populated for DOCKER_EXEC strategy
+  ConnectionStrategy strategy = 7;
+}
+
+// BackupJobSpec defines a scheduled backup job for one Target.
+// See docs/07-api-contract.md §5 (BackupJobSpec).
+message BackupJobSpec {
+  string id = 1;
+  string target_id = 2;
+  string cron = 3;                     // cron expression in UTC
+  uint32 retention_days = 4;
+  string compression = 5;              // "zstd" | "gzip" | "none"
+  bool encryption_enabled = 6;
+  repeated string pre_hooks = 7;
+  repeated string post_hooks = 8;
+  RetryPolicy retry = 9;
+  uint32 timeout_sec = 10;
+}
+
+// HealthCheckSpec defines a single health-check probe.
+// See docs/07-api-contract.md §5 (HealthCheckSpec).
+message HealthCheckSpec {
+  string id = 1;
+  string name = 2;
+  CheckType type = 3;
+  string target = 4;                   // URL or host:port
+  uint32 interval_sec = 5;
+  uint32 timeout_sec = 6;
+  uint32 expected_status = 7;          // expected HTTP status (HTTP/HTTPS only)
+}
+
+// -----------------------------------------------------------------------------
+// Config push
+// -----------------------------------------------------------------------------
+
+// ConfigUpdate replaces the agent's current AgentConfig.
+// See docs/07-api-contract.md §5.
+message ConfigUpdate {
+  AgentConfig config = 1;
+}
+
+// -----------------------------------------------------------------------------
+// Job control
+// -----------------------------------------------------------------------------
+
+// RunBackup tells the agent to execute one backup run for the named job.
+// Server pre-issues S3 upload credentials and a KMS-wrapped DEK.
+// See docs/07-api-contract.md §5 (RunBackup).
+message RunBackup {
+  string job_id = 1;
+  string run_id = 2;
+  bool manual_trigger = 3;
+  S3UploadCreds upload_creds = 4;
+  bytes encrypted_dek = 5;             // DEK wrapped by KMS
+}
+
+// CancelJob requests cancellation of an in-flight job.
+// See docs/07-api-contract.md §5 (CancelJob).
+message CancelJob {
+  string job_id = 1;
+}
+
+// RunHealthCheck triggers an immediate, out-of-schedule health-check probe.
+// See docs/07-api-contract.md §5 (RunHealthCheck).
+message RunHealthCheck {
+  string check_id = 1;
+}
+
+// -----------------------------------------------------------------------------
+// Lifecycle / liveness
+// -----------------------------------------------------------------------------
+
+// SelfUpdate asks the agent to upgrade its binary to target_version.
+// cosign_signature lets the agent verify the binary before swapping it in.
+// See docs/07-api-contract.md §5 (SelfUpdate).
+message SelfUpdate {
+  string target_version = 1;
+  string binary_url = 2;
+  string sha256 = 3;
+  bytes cosign_signature = 4;
+  bool force = 5;
+}
+
+// Ping is an application-level keepalive complementing WS-level pings.
+// The agent replies with an Ack carrying the same correlation_id.
+message Ping {
+  uint64 ts_ms = 1;
+}

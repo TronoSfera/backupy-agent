@@ -1,0 +1,34 @@
+# Backupy protobuf module — see docs/07-api-contract.md
+#
+# This module owns the canonical wire-format definitions used by:
+#   - apps/agent  (Go)
+#   - apps/server (Go)
+#
+# Generated code lives under gen/ and is committed (small, deterministic,
+# trivially regenerated via `make proto`).
+
+version: v2
+
+modules:
+  - path: .
+
+lint:
+  use:
+    - STANDARD
+  except:
+    # Enum values in common.proto (e.g. POSTGRESQL, TCP, HTTP) are intentionally
+    # short and unprefixed because they read naturally in generated Go code as
+    # backupv1.POSTGRESQL etc. STANDARD's ENUM_VALUE_PREFIX would require
+    # DB_TYPE_POSTGRESQL, which is needlessly verbose.
+    - ENUM_VALUE_PREFIX
+    - ENUM_ZERO_VALUE_SUFFIX
+    # We use proto messages over WSS, not gRPC services, so service-related
+    # rules do not apply.
+    - RPC_REQUEST_STANDARD_NAME
+    - RPC_RESPONSE_STANDARD_NAME
+    - RPC_REQUEST_RESPONSE_UNIQUE
+    - SERVICE_SUFFIX
+
+breaking:
+  use:
+    - FILE
