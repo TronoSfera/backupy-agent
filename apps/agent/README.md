@@ -31,8 +31,8 @@ services:
   backup-agent:
     image: backupy/agent:1
     environment:
-      BACKUP_SERVER_URL: https://api.backupy.ru
-      BACKUP_AGENT_KEY: ${BACKUP_KEY}
+      BACKUPY_SERVER_URL: https://api.backupy.ru
+      BACKUPY_AGENT_KEY: ${BACKUP_KEY}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - backup-agent-state:/var/lib/backup-agent
@@ -46,12 +46,12 @@ volumes:
 
 | Var | Required | Default | Notes |
 |---|---|---|---|
-| `BACKUP_SERVER_URL` | yes | `https://api.backupy.ru` | Must be `https://` (override with `BACKUP_DEV_ALLOW_INSECURE=true` for local dev). |
-| `BACKUP_AGENT_KEY` | yes | — | Format `bkpy_(live\|test)_<32 alnum>`. Never logged. |
-| `BACKUP_STATE_DIR` | no | `/var/lib/backup-agent` | Volume-mounted. Must be writable by uid 65532 (distroless `nonroot`). |
-| `BACKUP_LOG_LEVEL` | no | `info` | `trace`/`debug`/`info`/`warn`/`error`. |
-| `BACKUP_DOCKER_SOCKET` | no | `/var/run/docker.sock` | Mounted read-only. |
-| `BACKUP_DEV_ALLOW_INSECURE` | no | `false` | Allows `http://` server URL — dev only. |
+| `BACKUPY_SERVER_URL` | yes | `https://api.backupy.ru` | Must be `https://` (override with `BACKUPY_DEV_ALLOW_INSECURE=true` for local dev). |
+| `BACKUPY_AGENT_KEY` | yes | — | Format `bkpy_(live\|test)_<32 alnum>`. Never logged. |
+| `BACKUPY_STATE_DIR` | no | `/var/lib/backup-agent` | Volume-mounted. Must be writable by uid 65532 (distroless `nonroot`). |
+| `BACKUPY_LOG_LEVEL` | no | `info` | `trace`/`debug`/`info`/`warn`/`error`. |
+| `BACKUPY_DOCKER_SOCKET` | no | `/var/run/docker.sock` | Mounted read-only. |
+| `BACKUPY_DEV_ALLOW_INSECURE` | no | `false` | Allows `http://` server URL — dev only. |
 
 Everything else (targets, schedules, retention, S3 creds, hooks) comes from
 the server via `ConfigUpdate` after registration.
@@ -127,7 +127,7 @@ Packages that require generated proto code to compile:
 ## Security notes
 
 - TLS 1.3 to all server endpoints (enforced by `coder/websocket` defaults).
-- `BACKUP_AGENT_KEY` is never logged (`slog` ReplaceAttr redacts known keys
+- `BACKUPY_AGENT_KEY` is never logged (`slog` ReplaceAttr redacts known keys
   defensively; the value is also `json:"-"` in `Config`).
 - State at rest is AES-256-GCM keyed by HKDF-SHA256 of the agent key.
 - Docker socket is mounted read-only.

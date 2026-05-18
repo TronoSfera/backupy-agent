@@ -16,7 +16,7 @@ import (
 //
 // Health criteria:
 //
-//  1. Required env vars are set (BACKUP_AGENT_KEY / BACKUP_SERVER_URL).
+//  1. Required env vars are set (BACKUPY_AGENT_KEY / BACKUPY_SERVER_URL).
 //  2. The state.db file can be opened (validates encryption key + on-disk
 //     integrity).
 //

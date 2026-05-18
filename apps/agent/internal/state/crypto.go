@@ -1,8 +1,8 @@
 // State-at-rest encryption helpers.
 //
 // All bucket *values* are wrapped with AES-256-GCM using a key derived from
-// BACKUP_AGENT_KEY via HKDF-SHA256 (per docs/03-agent-spec.md →
-// "Шифрование state опционально (key derived из BACKUP_AGENT_KEY)").
+// BACKUPY_AGENT_KEY via HKDF-SHA256 (per docs/03-agent-spec.md →
+// "Шифрование state опционально (key derived из BACKUPY_AGENT_KEY)").
 //
 // Wire format on disk:
 //

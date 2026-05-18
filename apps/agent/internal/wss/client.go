@@ -70,7 +70,7 @@ type Config struct {
 	Capabilities  []string
 	// AllowInsecure permits ws:// / http:// dial schemes when ServerURL
 	// uses one. Production must leave this false — it matches the
-	// agent's BACKUP_DEV_ALLOW_INSECURE bootstrap flag.
+	// agent's BACKUPY_DEV_ALLOW_INSECURE bootstrap flag.
 	AllowInsecure bool
 }
 

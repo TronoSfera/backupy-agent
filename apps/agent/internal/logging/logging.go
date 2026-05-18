@@ -5,7 +5,7 @@
 // are eventually streamed to the server, so structured form is mandatory).
 // The dev profile lowers verbosity by disabling source positions.
 //
-// BACKUP_AGENT_KEY is never logged — see config.Config which tags it
+// BACKUPY_AGENT_KEY is never logged — see config.Config which tags it
 // `json:"-"` and the redactKey helper here for defence-in-depth.
 package logging
 

@@ -1,5 +1,5 @@
 // Package state owns the agent's persistent on-disk state — a BoltDB file
-// at $BACKUP_STATE_DIR/state.db.
+// at $BACKUPY_STATE_DIR/state.db.
 //
 // Buckets:
 //
@@ -8,7 +8,7 @@
 //	"registry"    — session metadata: last session_id, server_time, heartbeat.
 //	"logs_buffer" — rate-limited LogEvent buffer when server is unreachable.
 //
-// All bucket values are encrypted with AES-256-GCM keyed by HKDF(BACKUP_AGENT_KEY).
+// All bucket values are encrypted with AES-256-GCM keyed by HKDF(BACKUPY_AGENT_KEY).
 // See crypto.go for the wire format.
 //
 // Concurrency: bbolt serialises write transactions itself, so the Store is

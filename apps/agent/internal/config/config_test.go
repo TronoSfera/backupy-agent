@@ -77,7 +77,7 @@ func TestValidate_AgentKey(t *testing.T) {
 				require.NoError(t, err)
 			} else {
 				require.Error(t, err)
-				require.Contains(t, err.Error(), "BACKUP_AGENT_KEY")
+				require.Contains(t, err.Error(), "BACKUPY_AGENT_KEY")
 			}
 		})
 	}

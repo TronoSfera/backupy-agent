@@ -20,29 +20,29 @@ import (
 	"github.com/caarlos0/env/v11"
 )
 
-// agentKeyPattern enforces the documented BACKUP_AGENT_KEY format
+// agentKeyPattern enforces the documented BACKUPY_AGENT_KEY format
 // `bkpy_(live|test)_<32 base62 chars>`. The server issues keys in
 // this exact shape — see docs/03-agent-spec.md and server task A-09.
-var agentKeyPattern = regexp.MustCompile(`^bkpy_(live|test)_[A-Za-z0-9]{32}$`)
+var agentKeyPattern = regexp.MustCompile(`^(?:bkpy_(?:live|test)_[A-Za-z0-9]{32}|[a-f0-9]{64})$`)
 
 // Config holds all agent bootstrap configuration.
 type Config struct {
-	ServerURL    string `env:"BACKUP_SERVER_URL,required" envDefault:"https://api.backupy.ru"`
-	AgentKey     string `env:"BACKUP_AGENT_KEY,required"  json:"-"`
-	StateDir     string `env:"BACKUP_STATE_DIR"           envDefault:"/var/lib/backup-agent"`
-	LogLevel     string `env:"BACKUP_LOG_LEVEL"           envDefault:"info"`
-	DockerSocket string `env:"BACKUP_DOCKER_SOCKET"       envDefault:"/var/run/docker.sock"`
+	ServerURL    string `env:"BACKUPY_SERVER_URL,required" envDefault:"https://api.backupy.ru"`
+	AgentKey     string `env:"BACKUPY_AGENT_KEY,required"  json:"-"`
+	StateDir     string `env:"BACKUPY_STATE_DIR"           envDefault:"/var/lib/backup-agent"`
+	LogLevel     string `env:"BACKUPY_LOG_LEVEL"           envDefault:"info"`
+	DockerSocket string `env:"BACKUPY_DOCKER_SOCKET"       envDefault:"/var/run/docker.sock"`
 
 	// DevAllowInsecure relaxes the https:// requirement on ServerURL.
 	// Intended for local development against a plaintext server only.
-	DevAllowInsecure bool `env:"BACKUP_DEV_ALLOW_INSECURE" envDefault:"false"`
+	DevAllowInsecure bool `env:"BACKUPY_DEV_ALLOW_INSECURE" envDefault:"false"`
 
 	// MetricsListenAddr is the bind address for the Prometheus
 	// `/metrics` endpoint (D-19). Default is loopback only —
 	// 127.0.0.1:9090. Set to empty to disable the metrics server.
 	// SECURITY: never bind to 0.0.0.0 in production; the endpoint
 	// reveals job IDs and run cadence usable for host fingerprinting.
-	MetricsListenAddr string `env:"BACKUP_METRICS_LISTEN_ADDR" envDefault:"127.0.0.1:9090"`
+	MetricsListenAddr string `env:"BACKUPY_METRICS_LISTEN_ADDR" envDefault:"127.0.0.1:9090"`
 }
 
 // Load parses environment variables into a Config and validates them.
@@ -62,7 +62,7 @@ func Load() (*Config, error) {
 // Validate enforces the documented constraints on each field.
 //
 //   - ServerURL must parse as an https:// URL (http:// only with
-//     BACKUP_DEV_ALLOW_INSECURE=true).
+//     BACKUPY_DEV_ALLOW_INSECURE=true).
 //   - AgentKey must match the canonical `bkpy_(live|test)_…` pattern.
 //   - StateDir must be writable; we test by creating and removing a temp
 //     file so a misconfigured volume mount fails fast at startup.
@@ -71,7 +71,7 @@ func (c *Config) Validate() error {
 		return err
 	}
 	if !agentKeyPattern.MatchString(c.AgentKey) {
-		return errors.New("config: BACKUP_AGENT_KEY has invalid format; expected bkpy_(live|test)_<32 alnum>")
+		return errors.New("config: BACKUPY_AGENT_KEY has invalid format; expected 64 hex chars (or legacy bkpy_(live|test)_<32 alnum>)")
 	}
 	if err := validateStateDirWritable(c.StateDir); err != nil {
 		return err
@@ -82,27 +82,27 @@ func (c *Config) Validate() error {
 func validateServerURL(raw string, allowInsecure bool) error {
 	u, err := url.Parse(raw)
 	if err != nil {
-		return fmt.Errorf("config: BACKUP_SERVER_URL is not a valid URL: %w", err)
+		return fmt.Errorf("config: BACKUPY_SERVER_URL is not a valid URL: %w", err)
 	}
 	if u.Host == "" {
-		return errors.New("config: BACKUP_SERVER_URL is missing host")
+		return errors.New("config: BACKUPY_SERVER_URL is missing host")
 	}
 	switch u.Scheme {
 	case "https":
 		return nil
 	case "http":
 		if !allowInsecure {
-			return errors.New("config: BACKUP_SERVER_URL must use https:// (set BACKUP_DEV_ALLOW_INSECURE=true for local dev)")
+			return errors.New("config: BACKUPY_SERVER_URL must use https:// (set BACKUPY_DEV_ALLOW_INSECURE=true for local dev)")
 		}
 		return nil
 	default:
-		return fmt.Errorf("config: BACKUP_SERVER_URL has unsupported scheme %q (expected https)", u.Scheme)
+		return fmt.Errorf("config: BACKUPY_SERVER_URL has unsupported scheme %q (expected https)", u.Scheme)
 	}
 }
 
 func validateStateDirWritable(dir string) error {
 	if dir == "" {
-		return errors.New("config: BACKUP_STATE_DIR must not be empty")
+		return errors.New("config: BACKUPY_STATE_DIR must not be empty")
 	}
 	// Ensure the directory exists; create it (and parents) if missing.
 	// 0o700 — only the agent UID should ever touch state.

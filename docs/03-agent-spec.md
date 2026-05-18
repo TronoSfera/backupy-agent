@@ -11,8 +11,8 @@ services:
   backup-agent:
     image: backupservice/agent:latest
     environment:
-      BACKUP_SERVER_URL: https://backupy.ru
-      BACKUP_AGENT_KEY: ${BACKUP_KEY}
+      BACKUPY_SERVER_URL: https://backupy.ru
+      BACKUPY_AGENT_KEY: ${BACKUP_KEY}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - backup-agent-state:/var/lib/backup-agent
@@ -26,10 +26,10 @@ volumes:
 
 | Имя | Назначение | Required |
 |---|---|---|
-| `BACKUP_SERVER_URL` | Адрес control plane | да |
-| `BACKUP_AGENT_KEY` | Ключ агента (секрет) | да |
-| `BACKUP_LOG_LEVEL` | trace/debug/info/warn/error, default info | нет |
-| `BACKUP_STATE_DIR` | Путь к state, default `/var/lib/backup-agent` | нет |
+| `BACKUPY_SERVER_URL` | Адрес control plane | да |
+| `BACKUPY_AGENT_KEY` | Ключ агента (секрет) | да |
+| `BACKUPY_LOG_LEVEL` | trace/debug/info/warn/error, default info | нет |
+| `BACKUPY_STATE_DIR` | Путь к state, default `/var/lib/backup-agent` | нет |
 
 Всё остальное (targets, schedules, S3 creds, retention, hooks) — приходит с сервера через `ConfigUpdate`.
 
@@ -46,7 +46,7 @@ volumes:
 ### Persistent state в volume
 - SQLite или BoltDB в `/var/lib/backup-agent/state.db`.
 - Хранит: текущий config, очередь jobs, локальные логи, последний known config_version.
-- Шифрование state опционально (key derived из BACKUP_AGENT_KEY).
+- Шифрование state опционально (key derived из BACKUPY_AGENT_KEY).
 
 ### WSS-канал
 - Один long-lived connection на agent_id.
@@ -114,7 +114,7 @@ volumes:
 - TLS 1.3 ко всем endpoint'ам.
 - Pinning публичного ключа сервера (зашит в бинарь).
 - Docker socket монтируется read-only.
-- `BACKUP_AGENT_KEY` никогда не пишется в логи.
+- `BACKUPY_AGENT_KEY` никогда не пишется в логи.
 - Локальный state шифруется (опционально включается).
 - Healthcheck endpoint (если будет) — только на localhost.
 - Capabilities контейнера: drop ALL.
