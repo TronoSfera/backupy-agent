@@ -98,16 +98,33 @@ func (s *sqliteDriver) Dump(ctx context.Context, target *backupv1.Target, out io
 		return DumpInfo{}, fmt.Errorf("pipeline: sqlite: cannot stat database %q: %w", path, err)
 	}
 
-	gz := gzip.NewWriter(out)
-	defer gz.Close()
+	// `.backup` requires a regular file as the destination — the Alpine
+	// sqlite3 binary refuses /dev/stdout for non-root processes. We
+	// stage the snapshot in a temp file and stream it to `out` after.
+	tmpDir := os.TempDir()
+	tmpFile, err := os.CreateTemp(tmpDir, "sqlite-backup-*.db")
+	if err != nil {
+		return DumpInfo{}, fmt.Errorf("pipeline: sqlite: create temp file: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+	_ = tmpFile.Close()
+	defer func() { _ = os.Remove(tmpPath) }()
 
-	// sqlite3 expects a single positional argument (the database path)
-	// followed by a dot-command. `.backup` writes a consistent snapshot
-	// to the supplied filename; we pass /dev/stdout so the bytes flow
-	// through stdout into our gzip writer.
-	args := []string{path, ".backup '/dev/stdout'"}
-	if err := s.runner.RunStream(ctx, s.binary, args, nil, gz); err != nil {
+	args := []string{path, fmt.Sprintf(".backup '%s'", tmpPath)}
+	if err := s.runner.RunStream(ctx, s.binary, args, nil, io.Discard); err != nil {
 		return DumpInfo{}, fmt.Errorf("pipeline: sqlite3 .backup exec: %w", err)
+	}
+
+	src, err := os.Open(tmpPath)
+	if err != nil {
+		return DumpInfo{}, fmt.Errorf("pipeline: sqlite: open snapshot: %w", err)
+	}
+	defer src.Close()
+
+	gz := gzip.NewWriter(out)
+	if _, err := io.Copy(gz, src); err != nil {
+		_ = gz.Close()
+		return DumpInfo{}, fmt.Errorf("pipeline: sqlite: gzip copy: %w", err)
 	}
 	if err := gz.Close(); err != nil {
 		return DumpInfo{}, fmt.Errorf("pipeline: sqlite: close gzip: %w", err)

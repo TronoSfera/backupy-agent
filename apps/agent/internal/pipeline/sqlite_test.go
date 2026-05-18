@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -91,7 +92,23 @@ func TestSqlite_Dump_WrapsOutputInGzip(t *testing.T) {
 	payload := bytes.Repeat([]byte{0x53, 0x51, 0x4c}, 16) // pretend SQLite header bytes
 	mock := &mockRunner{
 		outputResp: map[string][]byte{"--version": []byte("3.45.1 2024-01-30\n")},
-		streamResp: payload,
+		// The new Dump implementation stages the snapshot in a temp
+		// file, then re-reads it into the gzip pipe. Simulate the
+		// real sqlite3 process by parsing the destination path out
+		// of the .backup dot-command and writing the canned payload
+		// to that path.
+		streamSideEffect: func(args []string) error {
+			if len(args) < 2 {
+				return errors.New("expected at least 2 args")
+			}
+			dot := args[1]
+			const prefix = ".backup '"
+			if !strings.HasPrefix(dot, prefix) || !strings.HasSuffix(dot, "'") {
+				return errors.New("malformed .backup dot-command")
+			}
+			path := dot[len(prefix) : len(dot)-1]
+			return os.WriteFile(path, payload, 0o600)
+		},
 	}
 	d := &sqliteDriver{binary: "sqlite3", runner: mock, statFn: os.Stat}
 
@@ -111,11 +128,12 @@ func TestSqlite_Dump_WrapsOutputInGzip(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, payload, got)
 
-	// Confirm `.backup '/dev/stdout'` was invoked with the right path.
+	// Confirm the dump invoked `.backup '<tmpfile>'`.
 	require.NotEmpty(t, mock.calls)
 	streamCall := mock.calls[0]
 	require.Equal(t, tmp, streamCall.Args[0])
-	require.Equal(t, ".backup '/dev/stdout'", streamCall.Args[1])
+	require.True(t, strings.HasPrefix(streamCall.Args[1], ".backup '"))
+	require.True(t, strings.HasSuffix(streamCall.Args[1], "'"))
 }
 
 func TestSqlite_Dump_MissingPath(t *testing.T) {

@@ -17,7 +17,11 @@ type mockRunner struct {
 	outputResp map[string][]byte // key = first arg (e.g. "--version")
 	streamResp []byte
 	streamErr  error
-	calls      []mockCall
+	// streamSideEffect, when non-nil, runs before streamResp is written
+	// to the supplied writer. Lets sqlite-style drivers that write to a
+	// real file-system path simulate the file write.
+	streamSideEffect func(args []string) error
+	calls            []mockCall
 }
 
 type mockCall struct {
@@ -40,6 +44,11 @@ func (m *mockRunner) RunStream(_ context.Context, _ string, args []string, env [
 	m.calls = append(m.calls, mockCall{Args: append([]string(nil), args...), Env: append([]string(nil), env...)})
 	if m.streamErr != nil {
 		return m.streamErr
+	}
+	if m.streamSideEffect != nil {
+		if err := m.streamSideEffect(args); err != nil {
+			return err
+		}
 	}
 	if len(m.streamResp) > 0 {
 		_, _ = out.Write(m.streamResp)
