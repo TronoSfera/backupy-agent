@@ -138,16 +138,23 @@ func (r *Runner) Run(ctx context.Context, req *backupv1.RunBackup) (completed *b
 		return nil, fmt.Errorf("pipeline: no driver registered for db_type=%s", driverKey)
 	}
 
-	// Unwrap the DEK once. The plaintext DEK never leaves this function.
-	dek, err := r.dekResolver.Unwrap(ctx, req.EncryptedDek)
-	if err != nil {
-		return nil, fmt.Errorf("pipeline: unwrap DEK: %w", err)
-	}
-	defer wipe(dek)
+	// Resolve the encryption stage. Jobs with encryption_enabled=false
+	// arrive with EncryptedDek=nil; in that case we wire the compressed
+	// stream straight to the uploader without ever materialising a
+	// plaintext DEK or instantiating an encryptor.
+	encryptEnabled := len(req.EncryptedDek) > 0
+	var encryptor *Encryptor
+	if encryptEnabled {
+		dek, err := r.dekResolver.Unwrap(ctx, req.EncryptedDek)
+		if err != nil {
+			return nil, fmt.Errorf("pipeline: unwrap DEK: %w", err)
+		}
+		defer wipe(dek)
 
-	encryptor, err := NewEncryptor(dek)
-	if err != nil {
-		return nil, fmt.Errorf("pipeline: build encryptor: %w", err)
+		encryptor, err = NewEncryptor(dek)
+		if err != nil {
+			return nil, fmt.Errorf("pipeline: build encryptor: %w", err)
+		}
 	}
 
 	// Smoke-validate the driver before we burn upload time on a dead db.
@@ -291,9 +298,20 @@ func (r *Runner) Run(ctx context.Context, req *backupv1.RunBackup) (completed *b
 		errs <- nil
 	}()
 
-	// Stage 3 — encrypt.
+	// Stage 3 — encrypt (skipped when the job has encryption disabled;
+	// in that case the compressed bytes are passed through unchanged).
 	go func() {
 		defer encryptedPW.Close()
+		if encryptor == nil {
+			if _, err := io.Copy(encryptedPW, compressedPR); err != nil {
+				_ = encryptedPW.CloseWithError(err)
+				_ = compressedPR.CloseWithError(err)
+				errs <- fmt.Errorf("encrypt: passthrough copy: %w", err)
+				return
+			}
+			errs <- nil
+			return
+		}
 		if _, err := encryptor.Stream(compressedPR, encryptedPW); err != nil {
 			_ = encryptedPW.CloseWithError(err)
 			_ = compressedPR.CloseWithError(err)

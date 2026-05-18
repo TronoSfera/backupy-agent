@@ -263,3 +263,44 @@ func TestRunner_DEKWrongLength(t *testing.T) {
 	_, err := runner.Run(context.Background(), req)
 	require.Error(t, err)
 }
+
+// TestRunner_HappyPath_EncryptionDisabled verifies that a RunBackup
+// arriving without a DEK (encryption_enabled=false on the job) skips
+// the encrypt stage entirely and uploads the compressed bytes as-is.
+func TestRunner_HappyPath_EncryptionDisabled(t *testing.T) {
+	plaintext := append([]byte(PgDumpMagic), make([]byte, 1<<10)...)
+	_, err := rand.Read(plaintext[len(PgDumpMagic):])
+	require.NoError(t, err)
+
+	driver := &fakeDriver{name: "pg_dump", payload: plaintext, version: "PostgreSQL 16.2"}
+	job := &backupv1.BackupJobSpec{Id: "j", TargetId: "t"}
+	target := &backupv1.Target{Id: "t", Type: backupv1.DbType_POSTGRESQL, Connection: &backupv1.ConnectionConfig{Host: "x"}}
+	lookups := &simpleLookups{job: job, target: target}
+
+	var received bytes.Buffer
+	srv := startFakeS3(t, &received)
+	defer srv.Close()
+
+	runner := NewRunner(
+		map[string]Driver{"postgresql": driver},
+		NewUploaderWithClient(srv.Client()),
+		WithTargetLookup(lookups),
+		WithJobLookup(lookups),
+	)
+	req := &backupv1.RunBackup{
+		JobId: "j", RunId: "r",
+		// No EncryptedDek — encryption disabled.
+		UploadCreds: &backupv1.S3UploadCreds{PresignedPutUrl: srv.URL + "/r.enc", FinalS3Key: "k"},
+	}
+	completed, err := runner.Run(context.Background(), req)
+	require.NoError(t, err)
+	require.Empty(t, completed.EncryptedDek, "no DEK should be reported back when encryption is disabled")
+
+	// The uploaded blob is the raw zstd stream — decompress directly.
+	zr, err := zstd.NewReader(&received)
+	require.NoError(t, err)
+	defer zr.Close()
+	round, err := io.ReadAll(zr)
+	require.NoError(t, err)
+	require.Equal(t, plaintext, round)
+}
