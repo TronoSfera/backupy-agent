@@ -78,6 +78,9 @@ RUN apk add --no-cache \
       openssl \
       sqlite-libs \
       readline \
+      zstd-libs \
+      lz4-libs \
+      xz-libs \
     && addgroup -S backupy -g 1000 \
     && adduser  -S backupy -G backupy -u 1000
 
