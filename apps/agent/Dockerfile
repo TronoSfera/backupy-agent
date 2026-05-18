@@ -77,6 +77,7 @@ RUN apk add --no-cache \
       mariadb-connector-c \
       openssl \
       sqlite-libs \
+      readline \
     && addgroup -S backupy -g 1000 \
     && adduser  -S backupy -G backupy -u 1000
 
