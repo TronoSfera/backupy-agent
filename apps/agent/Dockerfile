@@ -81,6 +81,7 @@ RUN apk add --no-cache \
       zstd-libs \
       lz4-libs \
       xz-libs \
+      krb5-libs \
     && addgroup -S backupy -g 1000 \
     && adduser  -S backupy -G backupy -u 1000
 
