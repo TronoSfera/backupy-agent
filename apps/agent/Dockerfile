@@ -57,9 +57,12 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 # Stage 2 — Source the database client binaries from Alpine packages.
 # Doing this in a separate stage keeps the apk cache out of the final image.
 # -----------------------------------------------------------------------------
-FROM alpine:3.20 AS dbclients
+FROM alpine:3.21 AS dbclients
+# pg_dump 17 can dump PG 13/14/15/16/17 servers — newer pg_dump is
+# forward-compatible against older servers, so a single binary covers
+# every prod Postgres we encounter today.
 RUN apk add --no-cache \
-      postgresql16-client \
+      postgresql17-client \
       mariadb-client \
       mongodb-tools \
       redis \
@@ -68,7 +71,7 @@ RUN apk add --no-cache \
 # -----------------------------------------------------------------------------
 # Stage 3 — runtime (alpine, non-root uid 1000)
 # -----------------------------------------------------------------------------
-FROM alpine:3.20 AS runtime
+FROM alpine:3.21 AS runtime
 
 RUN apk add --no-cache \
       ca-certificates \
