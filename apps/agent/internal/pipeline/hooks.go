@@ -125,6 +125,33 @@ func RunHook(ctx context.Context, command string, env []string, timeout time.Dur
 		cmd.Env = append(cmd.Env, env...)
 	}
 
+	// Run the shell in its own process group so that on timeout/cancel we
+	// can kill the WHOLE tree, not just /bin/sh. Without this, a hook like
+	// `pg_dump | gzip` leaves the real workers (pg_dump, mongodump, …)
+	// alive after the shell is killed: they survive holding the write end
+	// of our stdout/stderr pipes, the output-copy goroutines block, and
+	// cmd.Wait never returns — so the documented per-hook timeout silently
+	// does nothing. (Linux/Unix only, which is the agent's only target.)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error {
+		if cmd.Process == nil {
+			return nil
+		}
+		// Negative PID => signal the entire process group. Setpgid above
+		// makes the group id equal to the shell's pid.
+		if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL); err != nil {
+			// Group gone already (e.g. raced with natural exit) is fine;
+			// fall back to killing the process directly.
+			return cmd.Process.Kill()
+		}
+		return nil
+	}
+	// Backstop: if anything still pins the stdout/stderr pipes after the
+	// group kill, force Wait to close them and return instead of hanging
+	// on the copy goroutines. Kept well under the smallest test/timeout
+	// slack so a wedged hook frees the agent promptly.
+	cmd.WaitDelay = time.Second
+
 	stdoutBuf := newHookRingBuffer(HookOutputBufBytes)
 	stderrBuf := newHookRingBuffer(HookOutputBufBytes)
 	cmd.Stdout = stdoutBuf
